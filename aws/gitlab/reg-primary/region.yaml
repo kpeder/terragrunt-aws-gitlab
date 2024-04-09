@@ -1,0 +1,4 @@
+---
+region: "us-east-2"
+location: "us-east-2"
+zone_preference: "a"
