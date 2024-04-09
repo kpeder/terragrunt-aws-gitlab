@@ -1,0 +1,28 @@
+# .terraform directories
+**/.terraform/*
+
+# .terraform lock files
+.terraform.lock.hcl
+
+# tfstate files
+*.tfstate
+*.tfstate.*
+
+# tfvars files
+*.tfvars
+*.tfvars.json
+
+# override files
+*override.tf
+*override.tf.json
+
+# tfplan files
+*tfplan*
+
+# Go module files
+go.mod
+go.sum
+
+# Local input YAML
+local*yaml
+local*yml
