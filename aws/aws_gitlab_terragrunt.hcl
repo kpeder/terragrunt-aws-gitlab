@@ -1,21 +1,19 @@
-# configure gcs bucket dynamically.
+# configure s3 bucket dynamically.
 remote_state {
-  backend = "gcs"
+  backend = "s3"
   config = {
-    bucket                 = format("%s-%s-terraform-state", local.platform.prefix, format("%s-environment", local.environment.environment))
-    prefix                 = path_relative_to_include()
-    location               = local.multiregion.region
-    project                = local.platform.build_project
-    skip_bucket_creation   = false
-    skip_bucket_versioning = false
+    bucket         = format("%s-%s-terraform-state", local.platform.prefix, format("%s-environment", local.environment.environment))
+    key            = path_relative_to_include()
+    region         = local.region.region
+    encrypt        = true
   }
 }
 
 locals {
   default_yaml_path = find_in_parent_folders("empty.yaml") # terragrunt function for input search (not implemented).
-  platform          = fileexists(find_in_parent_folders("local.gcp.yaml")) ? yamldecode(file(find_in_parent_folders("local.gcp.yaml"))) : yamldecode(file(find_in_parent_folders("gcp.yaml")))
+  platform          = fileexists(find_in_parent_folders("local.aws.yaml")) ? yamldecode(file(find_in_parent_folders("local.aws.yaml"))) : yamldecode(file(find_in_parent_folders("aws.yaml")))
   environment       = yamldecode(file(find_in_parent_folders("env.yaml")))
-  multiregion       = yamldecode(file(find_in_parent_folders("reg-multi/region.yaml")))
+  region            = yamldecode(file(find_in_parent_folders("reg-primary/region.yaml")))
   versions          = yamldecode(file(find_in_parent_folders("versions.yaml")))
 }
 
@@ -28,11 +26,9 @@ generate "provider" {
   contents = <<EOF
 terraform {
   required_providers {
-    google = {
-      version = "${format("~> %s.0", local.versions.google_provider_version)}"
-    }
-    google-beta = {
-      version = "${format("~> %s.0", local.versions.google_provider_version)}"
+    aws = {
+      source  = "hashicorp/aws"
+      version = "${format("~> %s", local.versions.aws_provider_version)}"
     }
   }
 }
