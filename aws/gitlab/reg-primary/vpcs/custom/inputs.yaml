@@ -1,0 +1,45 @@
+---
+cidr: "172.16.0.0/16"
+dns:
+  hostnames: true
+  support: true
+internet:
+  deploy_gateway: true
+name: "custom"
+nat:
+  deploy_gateways: true
+  gateway_per_zone: true
+  global_gateway: false
+network_acls:
+  default:
+    inbound_rules: []
+    managed: false
+    outbound_rules: []
+  intra:
+    inbound_rules: []
+    managed: false
+    outbound_rules: []
+  private:
+    inbound_rules: []
+    managed: false
+    outbound_rules: []
+  public:
+    inbound_rules: []
+    managed: false
+    outbound_rules: []
+subnets:
+  intra: []
+  private:
+    - "172.16.12.0/22"
+    - "172.16.16.0/22"
+    - "172.16.20.0/22"
+  public:
+    - "172.16.4.0/24"
+    - "172.16.5.0/24"
+    - "172.16.6.0/24"
+vpn:
+  deploy_gateway: false
+zones:
+  - "a"
+  - "b"
+  - "c"

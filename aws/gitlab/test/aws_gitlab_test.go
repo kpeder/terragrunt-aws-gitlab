@@ -7,7 +7,6 @@ import (
 
 	//regexp"
 	"sort"
-	//"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terratest/modules/terraform"
@@ -60,7 +59,7 @@ func TestTerragruntDeployment(t *testing.T) {
 	}
 
 	// Define modules
-	moddirs["0-example"] = "../global/example"
+	moddirs["0-customVPC"] = "../reg-primary/vpcs/custom"
 
 	// Maps are unsorted, so sort the keys to process the modules in order
 	modkeys := make([]string, 0, len(moddirs))
@@ -104,7 +103,7 @@ func TestTerragruntDeployment(t *testing.T) {
 		t.Fail()
 	}
 
-	// Read and store the gcp.yaml
+	// Read and store the aws.yaml
 	if fileExists(terraformDeploymentOptions.TerraformDir + "/../local.aws.yaml") {
 		yfile, err = os.ReadFile(terraformDeploymentOptions.TerraformDir + "/../local.aws.yaml")
 		if err != nil {
@@ -209,13 +208,13 @@ func TestTerragruntDeployment(t *testing.T) {
 		// Add module-specific tests below
 		// Remember that we're in a loop, so group tests by module name (modules range keys)
 		// The following collections are available for tests:
-		//   platform, env, mregion, pregion, sregion, versions, inputs, outputs
+		//   platform, env, pregion, sregion, versions, inputs, outputs
 		// Two key patterns are available.
 		// 1. Reference the output map returned by terraform.OutputAll (ie. the output of "terragrunt output")
 		//		require.Equal(t, pregion["location"], outputs["location"])
 		// 2. Query the json string representing state returned by terraform.Show (ie. the output of "terragrunt show -json")
 		//		modulejson := gojsonq.New().JSONString(terraform.Show(t, terraformOptions)).From("values.root_module.resources").
-		//			Where("address", "eq", "azurerm_resource_group.main").
+		//			Where("address", "eq", "resource.this").
 		//			Select("values")
 		//		// Execute the above query; since it modifies the pointer we can only do this once, so we add it to a variable
 		//		values := modulejson.Get()
@@ -224,9 +223,32 @@ func TestTerragruntDeployment(t *testing.T) {
 		switch module {
 
 		// Example folder module
-		case "0-example":
+		case "0-customVPC":
 			// Make sure that prevent_destroy is set to false
 			assert.Contains(t, hclstring, "prevent_destroy = false")
+			t.Logf("Prevent destroy check PASSED. Expected contains 'prevent_destroy = false' to be true, got %v", assert.Contains(t, hclstring, "prevent_destroy = false"))
+
+			// Make sure the resource name contains the prefix, environment and name
+			assert.Contains(t, outputs["name"], platform["prefix"].(string))
+			assert.Contains(t, outputs["name"], env["environment"].(string))
+			assert.Contains(t, outputs["name"], inputs["name"].(string))
+
+			// Make sure there is an Internet gateway deployed
+			assert.NotEmpty(t, outputs["igw_id"])
+
+			// Make sure DNS is enabled
+			assert.True(t, outputs["vpc_enable_dns_support"].(bool))
+
+			// Make sure the correct CIDR block is configured
+			assert.Equal(t, inputs["cidr"].(string), outputs["vpc_cidr_block"].(string))
+
+			// Make sure the resources are deployed to the appropriate zones
+			for _, z := range inputs["zones"].([]interface{}) {
+				assert.Contains(t, outputs["azs"], pregion["location"].(string)+z.(string))
+			}
+
+			// Make sure there is one NAT gateway per zone
+			assert.Equal(t, len(outputs["azs"].([]interface{})), len(outputs["natgw_ids"].([]interface{})))
 
 		}
 	}

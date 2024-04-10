@@ -1,9 +1,11 @@
 ---
-golang_runtime_version: "1.21"
 aws_provider_version: "5.44.0"
+golang_runtime_version: "1.21"
 
 terraform_binary_version: "1.7"
 terraform_install_version: "1.7.4"
 
 terragrunt_binary_version: "0.55"
 terragrunt_install_version: "0.55.16"
+
+aws_module_vpc: "v5.7.1"

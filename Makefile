@@ -27,7 +27,7 @@ aws_gitlab_clean:
 
 .PHONY: aws_gitlab_configure
 aws_gitlab_configure:
-	@cd aws/gitlab && ./scripts/configure.sh -e dev -o kpeder -p us-east-1 -s us-west-1 -t devops
+	@cd aws/gitlab && ./scripts/configure.sh -e demo -o kpeder -p us-east-2 -s us-west-2 -t devops
 
 .PHONY: aws_gitlab_deploy
 aws_gitlab_deploy: aws_gitlab_configure aws_gitlab_init
