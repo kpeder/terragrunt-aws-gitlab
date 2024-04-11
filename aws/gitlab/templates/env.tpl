@@ -7,8 +7,8 @@ labels:
   team: TEAM
 
 dependencies:
-  demo_vpc_dependency_path: "reg-primary/vpcs/custom"
-  demo_vpc_mock_outputs:
+  custom_vpc_dependency_path: "reg-primary/vpcs/custom"
+  custom_vpc_mock_outputs:
     azs:
       - "PREGIONa"
       - "PREGIONb"
@@ -44,3 +44,14 @@ dependencies:
     vpc_enable_dns_support: true
     vpc_id: "vpc-0d8148e657a7787f1"
     vpc_main_route_table_id: "rtb-0ade48517f021bfde"
+
+  gitlab_keypair_dependency_path: "reg-primary/keypairs/gitlab"
+  gitlab_keypair_mock_outputs:
+    key_pair_id: "key-0576e69c4b8faacc2"
+    key_pair_name: "PREFIX-ENVIRONMENT-gitlab"
+
+  gitlab_sg_dependency_path: "reg-primary/sgs/gitlab"
+  gitlab_sg_mock_outputs:
+    security_group_id: "sg-03d25a67"
+    security_group_name: "PREFIX-ENVIRONMENT-gitlab"
+    security_group_vpc_id: "vpc-0d8148e657a7787f1"

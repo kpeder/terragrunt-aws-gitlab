@@ -1,0 +1,5 @@
+---
+labels: {}
+name: "gitlab"
+pubkey_str: ""
+pubkey_file: "~/.ssh/id_rsa.pub"

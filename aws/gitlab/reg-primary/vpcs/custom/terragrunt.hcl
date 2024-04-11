@@ -56,5 +56,5 @@ inputs = {
   enable_vpn_gateway            = local.inputs.vpn.deploy_gateway
   vpn_gateway_az                = format("%s%s", local.region.location, local.region.zone_preference)
 
-  tags                          = local.env.labels
+  tags                          = merge(local.env.labels, local.inputs.labels)
 }

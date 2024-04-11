@@ -82,3 +82,6 @@ sed -i -e "s:ZONE:a:g" reg-primary/region.yaml
 sed -i -e "s:REGION:${SREGION}:g" reg-secondary/region.yaml
 sed -i -e "s:ZONE:a:g" reg-secondary/region.yaml
 sed -i -e "s:TEAM:${TEAM}:g" env.yaml
+
+aws configure set default.region ${PREGION}
+aws configure set default.output json
