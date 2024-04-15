@@ -7,13 +7,14 @@ import (
 
 	//regexp"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terratest/modules/terraform"
 	"github.com/stretchr/testify/assert"
 
 	//"github.com/stretchr/testify/require"
-	//"github.com/thedevsaddam/gojsonq/v2"
+	"github.com/thedevsaddam/gojsonq/v2"
 	"gopkg.in/yaml.v3"
 )
 
@@ -28,6 +29,7 @@ func TestTerragruntDeployment(t *testing.T) {
 	moddirs := make(map[string]string)
 
 	// Non-local vars to evaluate state between modules
+	var vpcID string
 
 	// Reusable vars for unmarshalling YAML files
 	var err error
@@ -295,6 +297,25 @@ func TestTerragruntDeployment(t *testing.T) {
 				t.Errorf("NAT gateway check FAILED for module in %s, expected one NAT gateway per zone.", terraformOptions.TerraformDir)
 			}
 
+			// Query the json string representing state returned by 'terraform.Show'
+			modulejson := gojsonq.New().JSONString(terraform.Show(t, terraformOptions)).From("values.root_module.resources").
+				Where("address", "eq", "aws_vpc.this[0]").
+				Select("values")
+			// Execute the above query; since it modifies the pointer we can only do this once, so we add it to a variable
+			values := modulejson.Get().([]interface{})[0].(map[string]interface{})["values"]
+
+			// Make sure tags are applied
+			for tag, content := range env["labels"].(map[string]interface{}) {
+				if assert.Equal(t, values.(map[string]interface{})["tags"].(map[string]interface{})[tag].(string), content.(string)) {
+					t.Logf("Tag check for tag '%s' PASSED for module in %s", tag, terraformOptions.TerraformDir)
+				} else {
+					t.Errorf("Tag check for tag '%s' FAILED for module in %s, expected %s.", tag, terraformOptions.TerraformDir, content.(string))
+				}
+			}
+
+			// Store the VPC ID
+			vpcID = outputs["vpc_id"].(string)
+
 		// GitLab Security Group module
 		case "1-gitlabSG":
 			// Make sure that prevent_destroy is set to false
@@ -311,6 +332,50 @@ func TestTerragruntDeployment(t *testing.T) {
 				t.Logf("Resource name check PASSED for module in %s", terraformOptions.TerraformDir)
 			} else {
 				t.Errorf("Resource name check FAILED for module in %s, expected name to contain configured prefix, environment and name elements.", terraformOptions.TerraformDir)
+			}
+
+			// Make sure the security group is assigned to the correct VPC
+			if assert.Equal(t, vpcID, outputs["security_group_vpc_id"].(string)) {
+				t.Logf("VPC ID check PASSED for module in %s", terraformOptions.TerraformDir)
+			} else {
+				t.Errorf("VPC ID check FAILED for module in %s, expected VPC ID to be %s", terraformOptions.TerraformDir, vpcID)
+			}
+
+			// Make sure the security group has the correct ingress rules
+			cidr_blocks := inputs["ingress_cidr_blocks"].([]interface{})
+			for i := range inputs["ingress_rules"].([]interface{}) {
+				// Query the json string representing state returned by 'terraform.Show'
+				modulejson := gojsonq.New().JSONString(terraform.Show(t, terraformOptions)).From("values.root_module.resources").
+					Where("address", "eq", fmt.Sprintf("aws_security_group_rule.ingress_rules[%d]", i)).
+					Select("values")
+				// Execute the above query; since it modifies the pointer we can only do this once, so we add it to a variable
+				values := modulejson.Get().([]interface{})[0].(map[string]interface{})["values"]
+
+				// Compare the ingress rules with configured inputs
+				rule := strings.Split(inputs["ingress_rules"].([]interface{})[i].(string), "-")
+				if assert.Equal(t, values.(map[string]interface{})["description"].(string), strings.ToUpper(rule[0])) &&
+					assert.Equal(t, values.(map[string]interface{})["protocol"].(string), rule[len(rule)-1]) &&
+					assert.Equal(t, values.(map[string]interface{})["cidr_blocks"], cidr_blocks) {
+					t.Logf("Ingress rule %d check PASSED for module in %s", i, terraformOptions.TerraformDir)
+				} else {
+					t.Errorf("Ingress rule %d check FAILED for module in %s, expected CIDR to be %s, description to be %s and protocol to be %s", i, terraformOptions.TerraformDir, cidr_blocks, strings.ToUpper(rule[0]), rule[len(rule)-1])
+				}
+			}
+
+			// Query the json string representing state returned by 'terraform.Show'
+			modulejson := gojsonq.New().JSONString(terraform.Show(t, terraformOptions)).From("values.root_module.resources").
+				Where("address", "eq", "aws_security_group.this_name_prefix[0]").
+				Select("values")
+			// Execute the above query; since it modifies the pointer we can only do this once, so we add it to a variable
+			values := modulejson.Get().([]interface{})[0].(map[string]interface{})["values"]
+
+			// Make sure tags are applied
+			for tag, content := range env["labels"].(map[string]interface{}) {
+				if assert.Equal(t, values.(map[string]interface{})["tags"].(map[string]interface{})[tag].(string), content.(string)) {
+					t.Logf("Tag check for tag '%s' PASSED for module in %s", tag, terraformOptions.TerraformDir)
+				} else {
+					t.Errorf("Tag check for tag '%s' FAILED for module in %s, expected %s.", tag, terraformOptions.TerraformDir, content.(string))
+				}
 			}
 
 		// GitLab Key Pair module
@@ -331,6 +396,22 @@ func TestTerragruntDeployment(t *testing.T) {
 				t.Errorf("Resource name check FAILED for module in %s, expected name to contain configured prefix, environment and name elements.", terraformOptions.TerraformDir)
 			}
 
+			// Query the json string representing state returned by 'terraform.Show'
+			modulejson := gojsonq.New().JSONString(terraform.Show(t, terraformOptions)).From("values.root_module.resources").
+				Where("address", "eq", "aws_key_pair.this[0]").
+				Select("values")
+			// Execute the above query; since it modifies the pointer we can only do this once, so we add it to a variable
+			values := modulejson.Get().([]interface{})[0].(map[string]interface{})["values"]
+
+			// Make sure tags are applied
+			for tag, content := range env["labels"].(map[string]interface{}) {
+				if assert.Equal(t, values.(map[string]interface{})["tags"].(map[string]interface{})[tag].(string), content.(string)) {
+					t.Logf("Tag check for tag '%s' PASSED for module in %s", tag, terraformOptions.TerraformDir)
+				} else {
+					t.Errorf("Tag check for tag '%s' FAILED for module in %s, expected %s.", tag, terraformOptions.TerraformDir, content.(string))
+				}
+			}
+
 		// GitLab Security Group module
 		case "2-gitlabInstance":
 			// Make sure that prevent_destroy is set to false
@@ -348,6 +429,23 @@ func TestTerragruntDeployment(t *testing.T) {
 			} else {
 				t.Errorf("Resource name check FAILED for module in %s, expected name to contain configured prefix, environment and name elements.", terraformOptions.TerraformDir)
 			}
+
+			// Query the json string representing state returned by 'terraform.Show'
+			modulejson := gojsonq.New().JSONString(terraform.Show(t, terraformOptions)).From("values.root_module.resources").
+				Where("address", "eq", "aws_instance.this[0]").
+				Select("values")
+			// Execute the above query; since it modifies the pointer we can only do this once, so we add it to a variable
+			values := modulejson.Get().([]interface{})[0].(map[string]interface{})["values"]
+
+			// Make sure tags are applied
+			for tag, content := range env["labels"].(map[string]interface{}) {
+				if assert.Equal(t, values.(map[string]interface{})["tags"].(map[string]interface{})[tag].(string), content.(string)) {
+					t.Logf("Tag check for tag '%s' PASSED for module in %s", tag, terraformOptions.TerraformDir)
+				} else {
+					t.Errorf("Tag check for tag '%s' FAILED for module in %s, expected %s.", tag, terraformOptions.TerraformDir, content.(string))
+				}
+			}
+
 		}
 	}
 }
