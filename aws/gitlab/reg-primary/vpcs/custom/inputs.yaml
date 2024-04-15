@@ -5,6 +5,7 @@ dns:
   support: true
 internet:
   deploy_gateway: true
+labels: {}
 name: "custom"
 nat:
   deploy_gateways: true

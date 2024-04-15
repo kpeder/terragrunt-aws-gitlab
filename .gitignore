@@ -1,3 +1,6 @@
+# .terragrunt-cache directories
+**/.terragrunt-cache/*
+
 # .terraform directories
 **/.terraform/*
 
