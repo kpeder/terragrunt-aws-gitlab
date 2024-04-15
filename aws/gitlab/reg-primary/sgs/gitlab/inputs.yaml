@@ -2,6 +2,7 @@
 description: "Security group for network access to GitLab instance from the Internet"
 ingress_cidr_blocks:
   - "0.0.0.0/0"
+# order rules lexically, to match output and support testing
 ingress_rules:
   - "https-8443-tcp"
   - "ssh-tcp"
