@@ -62,8 +62,10 @@ func TestTerragruntDeployment(t *testing.T) {
 
 	// Define modules
 	moddirs["0-customVPC"] = "../reg-primary/vpcs/custom"
+	moddirs["1-customICEndpointSG"] = "../reg-primary/sgs/custom-ice"
 	moddirs["1-gitlabSG"] = "../reg-primary/sgs/gitlab"
 	moddirs["1-gitlabKeyPair"] = "../reg-primary/keypairs/gitlab"
+	moddirs["2-customICEndpoint"] = "../reg-primary/ices/custom"
 	moddirs["2-gitlabInstance"] = "../reg-primary/instances/gitlab"
 
 	// Maps are unsorted, so sort the keys to process the modules in order
@@ -316,8 +318,8 @@ func TestTerragruntDeployment(t *testing.T) {
 			// Store the VPC ID
 			vpcID = outputs["vpc_id"].(string)
 
-		// GitLab Security Group module
-		case "1-gitlabSG":
+		// Custom Instance Connect Endpoint Security Group module
+		case "1-customICEndpointSG":
 			// Make sure that prevent_destroy is set to false
 			if assert.Contains(t, hclstring, "prevent_destroy = false") {
 				t.Logf("Prevent destroy check PASSED for module in %s", terraformOptions.TerraformDir)
@@ -359,6 +361,118 @@ func TestTerragruntDeployment(t *testing.T) {
 					t.Logf("Ingress rule %d check PASSED for module in %s", i, terraformOptions.TerraformDir)
 				} else {
 					t.Errorf("Ingress rule %d check FAILED for module in %s, expected CIDR to be %s, description to be %s and protocol to be %s", i, terraformOptions.TerraformDir, cidr_blocks, strings.ToUpper(rule[0]), rule[len(rule)-1])
+				}
+			}
+
+			// Make sure there's an egress rule for SSH, or the endpoint won't connect
+			if assert.GreaterOrEqual(t, len(inputs["egress_cidr_blocks"].([]interface{})), 1) &&
+				assert.Contains(t, inputs["egress_rules"].([]interface{}), "ssh-tcp") {
+				t.Logf("Egress rule 'ssh-tcp' check PASSED for module in %s", terraformOptions.TerraformDir)
+			} else {
+				t.Errorf("Egress rule 'ssh-tcp' check FAILED for module in %s, expected an 'ssh-tcp' egress rule to be configured.", terraformOptions.TerraformDir)
+			}
+
+			// Make sure the security group has the correct egress rules
+			cidr_blocks = inputs["egress_cidr_blocks"].([]interface{})
+			for i := range inputs["egress_rules"].([]interface{}) {
+				// Query the json string representing state returned by 'terraform.Show'
+				modulejson := gojsonq.New().JSONString(terraform.Show(t, terraformOptions)).From("values.root_module.resources").
+					Where("address", "eq", fmt.Sprintf("aws_security_group_rule.egress_rules[%d]", i)).
+					Select("values")
+				// Execute the above query; since it modifies the pointer we can only do this once, so we add it to a variable
+				values := modulejson.Get().([]interface{})[0].(map[string]interface{})["values"]
+
+				// Compare the ingress rules with configured inputs
+				rule := strings.Split(inputs["egress_rules"].([]interface{})[i].(string), "-")
+				if assert.Equal(t, values.(map[string]interface{})["description"].(string), strings.ToUpper(rule[0])) &&
+					assert.Equal(t, values.(map[string]interface{})["protocol"].(string), rule[len(rule)-1]) &&
+					assert.Equal(t, values.(map[string]interface{})["cidr_blocks"], cidr_blocks) {
+					t.Logf("Egress rule %d check PASSED for module in %s", i, terraformOptions.TerraformDir)
+				} else {
+					t.Errorf("Egress rule %d check FAILED for module in %s, expected CIDR to be %s, description to be %s and protocol to be %s", i, terraformOptions.TerraformDir, cidr_blocks, strings.ToUpper(rule[0]), rule[len(rule)-1])
+				}
+			}
+
+			// Query the json string representing state returned by 'terraform.Show'
+			modulejson := gojsonq.New().JSONString(terraform.Show(t, terraformOptions)).From("values.root_module.resources").
+				Where("address", "eq", "aws_security_group.this_name_prefix[0]").
+				Select("values")
+			// Execute the above query; since it modifies the pointer we can only do this once, so we add it to a variable
+			values := modulejson.Get().([]interface{})[0].(map[string]interface{})["values"]
+
+			// Make sure tags are applied
+			for tag, content := range env["labels"].(map[string]interface{}) {
+				if assert.Equal(t, values.(map[string]interface{})["tags"].(map[string]interface{})[tag].(string), content.(string)) {
+					t.Logf("Tag check for tag '%s' PASSED for module in %s", tag, terraformOptions.TerraformDir)
+				} else {
+					t.Errorf("Tag check for tag '%s' FAILED for module in %s, expected %s.", tag, terraformOptions.TerraformDir, content.(string))
+				}
+			}
+
+		// GitLab Security Group module
+		case "1-gitlabSG":
+			// Make sure that prevent_destroy is set to false
+			if assert.Contains(t, hclstring, "prevent_destroy = false") {
+				t.Logf("Prevent destroy check PASSED for module in %s", terraformOptions.TerraformDir)
+			} else {
+				t.Errorf("Prevent destroy check FAILED for module in %s, expected prevent_destroy to be set to false in terragrunt.hcl.", terraformOptions.TerraformDir)
+			}
+
+			// Make sure the resource name contains the prefix, environment and name
+			if (assert.Contains(t, outputs["security_group_name"], platform["prefix"].(string))) &&
+				(assert.Contains(t, outputs["security_group_name"], env["environment"].(string))) &&
+				(assert.Contains(t, outputs["security_group_name"], inputs["name"].(string))) {
+				t.Logf("Resource name check PASSED for module in %s", terraformOptions.TerraformDir)
+			} else {
+				t.Errorf("Resource name check FAILED for module in %s, expected name to contain configured prefix, environment and name elements.", terraformOptions.TerraformDir)
+			}
+
+			// Make sure the security group is assigned to the correct VPC
+			if assert.Equal(t, vpcID, outputs["security_group_vpc_id"].(string)) {
+				t.Logf("VPC ID check PASSED for module in %s", terraformOptions.TerraformDir)
+			} else {
+				t.Errorf("VPC ID check FAILED for module in %s, expected VPC ID to be %s", terraformOptions.TerraformDir, vpcID)
+			}
+
+			// Make sure the security group has the correct ingress rules
+			cidr_blocks := append(inputs["ingress_cidr_blocks"].([]interface{}), env["dependencies"].(map[string]interface{})["custom_vpc_mock_outputs"].(map[string]interface{})["vpc_cidr_block"].(string))
+			for i := range inputs["ingress_rules"].([]interface{}) {
+				// Query the json string representing state returned by 'terraform.Show'
+				modulejson := gojsonq.New().JSONString(terraform.Show(t, terraformOptions)).From("values.root_module.resources").
+					Where("address", "eq", fmt.Sprintf("aws_security_group_rule.ingress_rules[%d]", i)).
+					Select("values")
+				// Execute the above query; since it modifies the pointer we can only do this once, so we add it to a variable
+				values := modulejson.Get().([]interface{})[0].(map[string]interface{})["values"]
+
+				// Compare the ingress rules with configured inputs
+				rule := strings.Split(inputs["ingress_rules"].([]interface{})[i].(string), "-")
+				if assert.Equal(t, values.(map[string]interface{})["description"].(string), strings.ToUpper(rule[0])) &&
+					assert.Equal(t, values.(map[string]interface{})["protocol"].(string), rule[len(rule)-1]) &&
+					assert.Equal(t, values.(map[string]interface{})["cidr_blocks"], cidr_blocks) {
+					t.Logf("Ingress rule %d check PASSED for module in %s", i, terraformOptions.TerraformDir)
+				} else {
+					t.Errorf("Ingress rule %d check FAILED for module in %s, expected CIDR to be %s, description to be %s and protocol to be %s", i, terraformOptions.TerraformDir, cidr_blocks, strings.ToUpper(rule[0]), rule[len(rule)-1])
+				}
+			}
+
+			// Make sure the security group has the correct egress rules
+			cidr_blocks = inputs["egress_cidr_blocks"].([]interface{})
+			for i := range inputs["egress_rules"].([]interface{}) {
+				// Query the json string representing state returned by 'terraform.Show'
+				modulejson := gojsonq.New().JSONString(terraform.Show(t, terraformOptions)).From("values.root_module.resources").
+					Where("address", "eq", fmt.Sprintf("aws_security_group_rule.egress_rules[%d]", i)).
+					Select("values")
+				// Execute the above query; since it modifies the pointer we can only do this once, so we add it to a variable
+				values := modulejson.Get().([]interface{})[0].(map[string]interface{})["values"]
+
+				// Compare the ingress rules with configured inputs
+				rule := strings.Split(inputs["egress_rules"].([]interface{})[i].(string), "-")
+				if assert.Equal(t, values.(map[string]interface{})["description"].(string), strings.ToUpper(rule[0])) &&
+					assert.Equal(t, values.(map[string]interface{})["protocol"].(string), rule[len(rule)-1]) &&
+					assert.Equal(t, values.(map[string]interface{})["cidr_blocks"], cidr_blocks) {
+					t.Logf("Egress rule %d check PASSED for module in %s", i, terraformOptions.TerraformDir)
+				} else {
+					t.Errorf("Egress rule %d check FAILED for module in %s, expected CIDR to be %s, description to be %s and protocol to be %s", i, terraformOptions.TerraformDir, cidr_blocks, strings.ToUpper(rule[0]), rule[len(rule)-1])
 				}
 			}
 
@@ -412,7 +526,39 @@ func TestTerragruntDeployment(t *testing.T) {
 				}
 			}
 
-		// GitLab Security Group module
+		// Custom Instance Connect Endpoint module
+		case "2-customICEndpoint":
+			// Make sure that prevent_destroy is set to false
+			if assert.Contains(t, hclstring, "prevent_destroy = false") {
+				t.Logf("Prevent destroy check PASSED for module in %s", terraformOptions.TerraformDir)
+			} else {
+				t.Errorf("Prevent destroy check FAILED for module in %s, expected prevent_destroy to be set to false in terragrunt.hcl.", terraformOptions.TerraformDir)
+			}
+
+			// Make sure the endpoint is in the correct zone
+			if assert.Equal(t, outputs["availability_zone"].(string), pregion["location"].(string)+pregion["zone_preference"].(string)) {
+				t.Logf("Availability zone check PASSED for module in %s", terraformOptions.TerraformDir)
+			} else {
+				t.Errorf("Availability zone check FAILED for module in %s, expected instance to be deployed in zone %s", terraformOptions.TerraformDir, pregion["location"].(string)+pregion["zone_preference"].(string))
+			}
+
+			// Make sure the endpoint configures client IP preservation correctly
+			if assert.Equal(t, outputs["preserve_client_ip"].(bool), inputs["preserve_client_ip"].(bool)) {
+				t.Logf("Preserve client IP check PASSED for module in %s", terraformOptions.TerraformDir)
+			} else {
+				t.Errorf("Preserve client IP check FAILED for module in %s, expected preserve client IP to be %t", terraformOptions.TerraformDir, inputs["preserve_client_ip"].(bool))
+			}
+
+			// Make sure tags are applied
+			for tag, content := range env["labels"].(map[string]interface{}) {
+				if assert.Equal(t, outputs["tags"].(map[string]interface{})[tag].(string), content.(string)) {
+					t.Logf("Tag check for tag '%s' PASSED for module in %s", tag, terraformOptions.TerraformDir)
+				} else {
+					t.Errorf("Tag check for tag '%s' FAILED for module in %s, expected %s.", tag, terraformOptions.TerraformDir, content.(string))
+				}
+			}
+
+		// GitLab EC2 Instance module
 		case "2-gitlabInstance":
 			// Make sure that prevent_destroy is set to false
 			if assert.Contains(t, hclstring, "prevent_destroy = false") {
@@ -428,6 +574,20 @@ func TestTerragruntDeployment(t *testing.T) {
 				t.Logf("Resource name check PASSED for module in %s", terraformOptions.TerraformDir)
 			} else {
 				t.Errorf("Resource name check FAILED for module in %s, expected name to contain configured prefix, environment and name elements.", terraformOptions.TerraformDir)
+			}
+
+			// Make sure the instance is in the correct zone
+			if assert.Equal(t, outputs["availability_zone"].(string), pregion["location"].(string)+pregion["zone_preference"].(string)) {
+				t.Logf("Availability zone check PASSED for module in %s", terraformOptions.TerraformDir)
+			} else {
+				t.Errorf("Availability zone check FAILED for module in %s, expected instance to be deployed in zone %s", terraformOptions.TerraformDir, pregion["location"].(string)+pregion["zone_preference"].(string))
+			}
+
+			// Make sure the instance does not configure a public IP address
+			if assert.False(t, inputs["public_ip"].(bool)) || assert.Empty(t, outputs["public_ip"]) {
+				t.Logf("Public IP not assigned check PASSED for module in %s", terraformOptions.TerraformDir)
+			} else {
+				t.Errorf("Public IP not assigned check FAILED for module in %s, expected no public IP address association to be configured.", terraformOptions.TerraformDir)
 			}
 
 			// Query the json string representing state returned by 'terraform.Show'

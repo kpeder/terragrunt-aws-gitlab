@@ -1,0 +1,13 @@
+---
+description: "Security group for network access to the instance connect endpoint"
+egress_cidr_blocks:
+  - "0.0.0.0/0"
+egress_rules:
+  - "ssh-tcp"
+ingress_cidr_blocks:
+  - "0.0.0.0/0"
+# order rules lexically, to match output and support testing
+ingress_rules:
+  - "ssh-tcp"
+labels: {}
+name: "custom-ice"

@@ -3,4 +3,5 @@ ami: "ami-0b8b44ec9a8f90422"
 labels: {}
 monitoring: false
 name: "gitlab"
+public_ip: false
 type: "c7i.large"
