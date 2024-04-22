@@ -9,7 +9,7 @@ variable "security_group_ids" {
     description = "List of security group ids to associate with the instance connect endpoint."
     type        = list(string)
 
-    default = []
+    default = null
 }
 
 variable "subnet_id" {
@@ -20,4 +20,6 @@ variable "subnet_id" {
 variable "tags" {
     description = "Dictionary of tags to apply to the instance connect endpoint."
     type        = map(string)
+
+    default = {}
 }
