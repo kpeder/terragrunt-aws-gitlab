@@ -43,13 +43,14 @@ terraform {
 }
 
 inputs = {
-  ami                    = local.inputs.ami
-  name                   = format("%s-%s-%s", local.platform.prefix, local.env.environment, local.inputs.name)
-  zone                   = format("%s%s", local.region.location, local.region.zone_preference)
-  instance_type          = local.inputs.type
-  key_name               = dependency.gitlab_keypair.outputs.key_pair_name
-  monitoring             = local.inputs.monitoring
-  subnet_id              = dependency.custom_vpc.outputs.public_subnets[0]
-  tags                   = merge(local.env.labels, local.inputs.labels)
-  vpc_security_group_ids = tolist([dependency.gitlab_sg.outputs.security_group_id])
+  ami                         = local.inputs.ami
+  associate_public_ip_address = local.inputs.public_ip
+  name                        = format("%s-%s-%s", local.platform.prefix, local.env.environment, local.inputs.name)
+  zone                        = format("%s%s", local.region.location, local.region.zone_preference)
+  instance_type               = local.inputs.type
+  key_name                    = dependency.gitlab_keypair.outputs.key_pair_name
+  monitoring                  = local.inputs.monitoring
+  subnet_id                   = dependency.custom_vpc.outputs.public_subnets[0]
+  tags                        = merge(local.env.labels, local.inputs.labels)
+  vpc_security_group_ids      = tolist([dependency.gitlab_sg.outputs.security_group_id])
 }
