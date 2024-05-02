@@ -9,6 +9,10 @@ function exit_with_msg {
 
 while [ $# -gt 0 ]; do
   case "${1}" in
+    -d|--dns-domain)
+      DNSDOMAIN="${2}"
+      shift
+      ;;
     -e|--environment)
       ENVIRONMENT="${2}"
       shift
@@ -16,12 +20,14 @@ while [ $# -gt 0 ]; do
     -h|--help)
       echo "Usage:"
       echo "$0 \\"
+      echo "  -d|--dns-domain <domain_name>"
       echo "  -e|--environment <environment_name>"
       echo " [-h|--help]"
       echo "  -o|--owner <owner>"
       echo "  -p|--primaryregion <primary_region>"
       echo "  -s|--secondaryregion <secondary_region>"
       echo "  -t|--team <team>"
+      echo "  -z|--route53-zone-id <route53_zone_id>"
       exit 0
       ;;
     -o|--owner)
@@ -40,6 +46,10 @@ while [ $# -gt 0 ]; do
       TEAM="${2}"
       shift
       ;;
+    -z|--route53-zone-id)
+      DNSZONEID="${2}"
+      shift
+      ;;
     *)
       exit_with_msg "Error: Invalid argument '${1}'."
   esac
@@ -55,13 +65,17 @@ fi
 [[ -z ${PREFIX} ]] && exit_with_msg "Can't locate deployment prefix. Exiting."
 [[ ${#PREFIX} > 5 ]] && exit_with_msg "Prefix '${PREFIX}' is too long. Exiting."
 
+[[ -z ${DNSDOMAIN} ]] && exit_with_msg "-d|--dns-domain is a required parameter. Exiting."
 [[ -z ${ENVIRONMENT} ]] && exit_with_msg "-e|--environment is a required parameter. Exiting."
 [[ -z ${OWNER} ]] && exit_with_msg "-o|--owner is a required parameter. Exiting."
 [[ -z ${PREGION} ]] && exit_with_msg "-p|--primaryregion is a required parameter. Exiting."
 [[ -z ${SREGION} ]] && exit_with_msg "-s|--secondaryregion is a required parameter. Exiting."
 [[ -z ${TEAM} ]] && exit_with_msg "-t|--team is a required parameter. Exiting."
+[[ -z ${DNSZONEID} ]] && exit_with_msg "-z|--route53-zone-id is a required parameter. Exiting."
 
 echo "Deployment Owner: ${OWNER}"
+echo "DNS Domain: ${DNSDOMAIN}"
+echo "DNS Zone ID: ${DNSZONEID}"
 echo "Environment: ${ENVIRONMENT}"
 echo "Name Prefix: ${PREFIX}"
 echo "Primary Region: ${PREGION}"
@@ -72,6 +86,8 @@ cp templates/env.tpl env.yaml
 cp templates/region.tpl reg-primary/region.yaml
 cp templates/region.tpl reg-secondary/region.yaml
 
+sed -i -e "s:DNSDOMAIN:${DNSDOMAIN}:g" env.yaml
+sed -i -e "s:DNSZONEID:${DNSZONEID}:g" env.yaml
 sed -i -e "s:ENVIRONMENT:${ENVIRONMENT}:g" env.yaml
 sed -i -e "s:OWNER:${OWNER}:g" env.yaml
 sed -i -e "s:PREFIX:${PREFIX}:g" env.yaml

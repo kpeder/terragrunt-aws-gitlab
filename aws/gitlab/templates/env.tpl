@@ -1,13 +1,13 @@
 ---
 dns:
-  domain: "bytecount.net"
-  zone_id: "Z2OCSN1ZPHG5PO"
-environment: ENVIRONMENT
+  domain: "DNSDOMAIN"
+  zone_id: "DNSZONEID"
+environment: "ENVIRONMENT"
 labels:
-  deployment: PREFIX
-  environment: ENVIRONMENT
-  owner: OWNER
-  team: TEAM
+  deployment: "PREFIX"
+  environment: "ENVIRONMENT"
+  owner: "OWNER"
+  team: "TEAM"
 
 dependencies:
   custom_vpc_dependency_path: "reg-primary/vpcs/custom"
@@ -56,7 +56,7 @@ dependencies:
 
   gitlab_certificate_dependency_path: "global/certificates/gitlab"
   gitlab_certificate_mock_outputs:
-    acm_certificate_arn: ""
+    acm_certificate_arn: "arn:aws:acm:PREGION:123456789012:certificate/a43d3a95-7632-433a-859a-ec2d42145b2b"
 
   gitlab_instance_dependency_path: "reg-primary/instances/gitlab"
   gitlab_instance_mock_outputs:
