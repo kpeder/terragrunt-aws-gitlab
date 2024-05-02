@@ -45,7 +45,9 @@ Targets:
     aws_gitlab_install   Install Terraform, Terragrunt
     aws_gitlab_lint      Run Go linters
     aws_gitlab_plan      Show deployment plan
-    aws_gitlab_test      Run deployment tests
+    aws_gitlab_test      Run deployment tests and clean up (CI loop)
 ```
 
-Note that additional targets can be added in order to configure multiple environments, for example to create development and production environments.
+Note that configuration targets will be specific to the target; particularly domain names, route53 zones and tags. Update these configuration values before deploying to your own environment by editing the aws_gitlab_configure target in the Makefile.
+
+Additional targets can be added in order to configure multiple environments, for example to create development and production environments.

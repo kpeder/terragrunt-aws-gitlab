@@ -13,7 +13,7 @@ help:
 	@echo '    aws_gitlab_install   Install Terraform, Terragrunt'
 	@echo '    aws_gitlab_lint      Run Go linters'
 	@echo '    aws_gitlab_plan      Show deployment plan'
-	@echo '    aws_gitlab_test      Run deployment tests'
+	@echo '    aws_gitlab_test      Run deployment tests and clean up (CI loop)'
 	@echo ''
 
 .PHONY: pre-commit
@@ -27,7 +27,7 @@ aws_gitlab_clean:
 
 .PHONY: aws_gitlab_configure
 aws_gitlab_configure:
-	@cd aws/gitlab && ./scripts/configure.sh -e demo -o kpeder -p us-east-2 -s us-west-2 -t devops
+	@cd aws/gitlab && ./scripts/configure.sh -d bytecount.net -e demo -o kpeder -p us-east-2 -s us-west-2 -t devops -z Z2OCSN1ZPHG5PO
 
 .PHONY: aws_gitlab_deploy
 aws_gitlab_deploy: aws_gitlab_configure aws_gitlab_init
