@@ -51,3 +51,45 @@ Targets:
 Note that configuration targets will be specific to the target; particularly domain names, route53 zones and tags. Update these configuration values before deploying to your own environment by editing the aws_gitlab_configure target in the Makefile.
 
 Additional targets can be added in order to configure multiple environments, for example to create development and production environments.
+
+### GitLab Installation
+Installation is decoupled from the instance deployment so that it can be customized, since GitLab installation may contain many environment-specific configuration options, including default root password, external database connection, external object storage location, external authentication, email forwarding configuration, and much more. Follow the instructions below for a vanilla, stand-alone implementation of the product.
+
+1. Connect to the GitLab instance using the configured keypair.
+
+    Update the deployed public key file if necessary by editing the value of pubkey_file value in the following file. It defaults to the ssh-keygen default location.
+
+    ```aws/gitlab/reg-primary/keypairs/gitlab/inputs.yaml```
+
+    Use the associated private key directly or via an SSH agent (recommended), such as ssh-agent (Linux) or Pageant (with PuTTY).
+
+    Use the AWS CLI to connect via the instance connect endpoint.
+
+    ```$ aws ec2-instance-connect ssh --instance-id i-0ea992f180c12345 --os-user ubuntu```
+
+2. Once connected to the instance, follow the [instructions](https://about.gitlab.com/install/#ubuntu) for installing gitlab, generalized below.
+    
+    Note that the package repository is already configured on the host. Update the example domain name to match the deployment zone.
+
+    ```$ sudo EXTERNAL_URL="http://gitlab.example.com" apt-get install gitlab-ee```
+
+3. Edit the configuration file to allow health checks from the local VPC range.
+
+    ```$ sudo vi /etc/gitlab/gitlab.rb```
+
+    Uncomment and edit the following line to add the VPC range (the default VPC range for this deployment is 172.16.0.0/16).
+
+    ```gitlab_rails['monitoring_whitelist] = ['127.0.0.1/8', '172.16.0.0/16']```
+
+    Then reconfigure GitLab.
+
+    ```$ sudo gitlab-ctl reconfigure```
+
+### Connection
+1. Copy the installation password from the GitLab instance.
+
+    ```$ sudo cat /etc/gitlab/initial_root_password```
+
+2. Connect to the endpoint using a browser and log in as user 'root' with the retrieved password. Update the example domain name to match the deployment zone.
+
+    ```https://gitlab.example.com/```
