@@ -68,7 +68,7 @@ Installation is decoupled from the instance deployment so that it can be customi
     ```$ aws ec2-instance-connect ssh --instance-id i-0ea992f180c12345 --os-user ubuntu```
 
 2. Once connected to the instance, follow the [instructions](https://about.gitlab.com/install/#ubuntu) for installing gitlab, generalized below.
-    
+
     Note that the package repository is already configured on the host. Update the example domain name to match the deployment zone.
 
     ```$ sudo EXTERNAL_URL="http://gitlab.example.com" apt-get install gitlab-ee```
