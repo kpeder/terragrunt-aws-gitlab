@@ -31,7 +31,7 @@ aws_gitlab_configure:
 
 .PHONY: aws_gitlab_deploy
 aws_gitlab_deploy: aws_gitlab_configure aws_gitlab_init
-	@cd aws/gitlab/test && go test -v
+	@cd aws/gitlab/test && go test -v -timeout 20m
 
 .PHONY: aws_gitlab_init
 aws_gitlab_init: aws_gitlab_configure
@@ -54,4 +54,4 @@ aws_gitlab_plan: aws_gitlab_configure aws_gitlab_init
 
 .PHONY: aws_gitlab_test
 aws_gitlab_test: aws_gitlab_configure aws_gitlab_lint
-	@cd aws/gitlab/test && go test -v -destroy
+	@cd aws/gitlab/test && go test -v -destroy -timeout 20m
