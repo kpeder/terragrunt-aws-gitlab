@@ -50,7 +50,8 @@ inputs = {
   instance_type               = local.inputs.type
   key_name                    = dependency.gitlab_keypair.outputs.key_pair_name
   monitoring                  = local.inputs.monitoring
-  subnet_id                   = dependency.custom_vpc.outputs.public_subnets[0]
+  subnet_id                   = dependency.custom_vpc.outputs.private_subnets[0]
   tags                        = merge(local.env.labels, local.inputs.labels)
+  user_data                   = local.inputs.user_data
   vpc_security_group_ids      = tolist([dependency.gitlab_sg.outputs.security_group_id])
 }

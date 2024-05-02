@@ -1,11 +1,14 @@
 ---
 description: "Security group for network access to the GitLab instance"
-egress_cidr_blocks: []
-egress_rules: []
+egress_cidr_blocks:
+  - "0.0.0.0/0"
+egress_rules:
+  - "http-80-tcp"
+  - "https-443-tcp"
 ingress_cidr_blocks: []
 # order rules lexically, to match output and support testing
 ingress_rules:
-  - "https-8443-tcp"
+  - "https-443-tcp"
   - "ssh-tcp"
 labels: {}
 name: "gitlab"
