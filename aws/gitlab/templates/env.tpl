@@ -1,10 +1,13 @@
 ---
-environment: ENVIRONMENT
+dns:
+  domain: "DNSDOMAIN"
+  zone_id: "DNSZONEID"
+environment: "ENVIRONMENT"
 labels:
-  deployment: PREFIX
-  environment: ENVIRONMENT
-  owner: OWNER
-  team: TEAM
+  deployment: "PREFIX"
+  environment: "ENVIRONMENT"
+  owner: "OWNER"
+  team: "TEAM"
 
 dependencies:
   custom_vpc_dependency_path: "reg-primary/vpcs/custom"
@@ -50,6 +53,16 @@ dependencies:
     security_group_id: "sg-06e47f69"
     security_group_name: "PREFIX-ENVIRONMENT-custom-ice"
     security_group_vpc_id: "vpc-0d8148e657a7787f1"
+
+  gitlab_certificate_dependency_path: "global/certificates/gitlab"
+  gitlab_certificate_mock_outputs:
+    acm_certificate_arn: "arn:aws:acm:PREGION:123456789012:certificate/a43d3a95-7632-433a-859a-ec2d42145b2b"
+
+  gitlab_instance_dependency_path: "reg-primary/instances/gitlab"
+  gitlab_instance_mock_outputs:
+    id: "i-123456789012"
+    private_ip: "172.16.12.24"
+    public_ip: ""
 
   gitlab_keypair_dependency_path: "reg-primary/keypairs/gitlab"
   gitlab_keypair_mock_outputs:

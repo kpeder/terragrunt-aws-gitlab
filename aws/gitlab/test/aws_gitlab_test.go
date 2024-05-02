@@ -29,6 +29,7 @@ func TestTerragruntDeployment(t *testing.T) {
 	moddirs := make(map[string]string)
 
 	// Non-local vars to evaluate state between modules
+	var certificateARN string
 	var vpcID string
 
 	// Reusable vars for unmarshalling YAML files
@@ -62,11 +63,13 @@ func TestTerragruntDeployment(t *testing.T) {
 
 	// Define modules
 	moddirs["0-customVPC"] = "../reg-primary/vpcs/custom"
+	moddirs["0-gitlabCertificate"] = "../global/certificates/gitlab"
+	moddirs["0-gitlabKeyPair"] = "../reg-primary/keypairs/gitlab"
 	moddirs["1-customICEndpointSG"] = "../reg-primary/sgs/custom-ice"
 	moddirs["1-gitlabSG"] = "../reg-primary/sgs/gitlab"
-	moddirs["1-gitlabKeyPair"] = "../reg-primary/keypairs/gitlab"
 	moddirs["2-customICEndpoint"] = "../reg-primary/ices/custom"
 	moddirs["2-gitlabInstance"] = "../reg-primary/instances/gitlab"
+	moddirs["3-gitlabALB"] = "../global/albs/gitlab"
 
 	// Maps are unsorted, so sort the keys to process the modules in order
 	modkeys := make([]string, 0, len(moddirs))
@@ -318,6 +321,40 @@ func TestTerragruntDeployment(t *testing.T) {
 			// Store the VPC ID
 			vpcID = outputs["vpc_id"].(string)
 
+		// GitLab Certificate module
+		case "0-gitlabCertificate":
+			// Make sure that prevent_destroy is set to false
+			if assert.Contains(t, hclstring, "prevent_destroy = false") {
+				t.Logf("Prevent destroy check PASSED for module in %s", terraformOptions.TerraformDir)
+			} else {
+				t.Errorf("Prevent destroy check FAILED for module in %s, expected prevent_destroy to be set to false in terragrunt.hcl.", terraformOptions.TerraformDir)
+			}
+
+			// Make sure the resource name contains the prefix, environment and name
+			if assert.Contains(t, outputs["distinct_domain_names"], inputs["name"].(string)+"."+env["dns"].(map[string]interface{})["domain"].(string)) {
+				t.Logf("Distinct DNS name check PASSED for module in %s", terraformOptions.TerraformDir)
+			} else {
+				t.Errorf("Distinct DNS name check FAILED for module in %s, expected %s.", terraformOptions.TerraformDir, inputs["name"].(string)+"."+env["dns"].(map[string]interface{})["domain"].(string))
+			}
+
+			certificateARN = outputs["acm_certificate_arn"].(string)
+
+			// Query the json string representing state returned by 'terraform.Show'
+			modulejson := gojsonq.New().JSONString(terraform.Show(t, terraformOptions)).From("values.root_module.resources").
+				Where("address", "eq", "aws_acm_certificate.this[0]").
+				Select("values")
+			// Execute the above query; since it modifies the pointer we can only do this once, so we add it to a variable
+			values := modulejson.Get().([]interface{})[0].(map[string]interface{})["values"]
+
+			// Make sure tags are applied
+			for tag, content := range env["labels"].(map[string]interface{}) {
+				if assert.Equal(t, values.(map[string]interface{})["tags"].(map[string]interface{})[tag].(string), content.(string)) {
+					t.Logf("Tag check for tag '%s' PASSED for module in %s", tag, terraformOptions.TerraformDir)
+				} else {
+					t.Errorf("Tag check for tag '%s' FAILED for module in %s, expected %s.", tag, terraformOptions.TerraformDir, content.(string))
+				}
+			}
+
 		// Custom Instance Connect Endpoint Security Group module
 		case "1-customICEndpointSG":
 			// Make sure that prevent_destroy is set to false
@@ -355,9 +392,9 @@ func TestTerragruntDeployment(t *testing.T) {
 
 				// Compare the ingress rules with configured inputs
 				rule := strings.Split(inputs["ingress_rules"].([]interface{})[i].(string), "-")
-				if assert.Equal(t, values.(map[string]interface{})["description"].(string), strings.ToUpper(rule[0])) &&
-					assert.Equal(t, values.(map[string]interface{})["protocol"].(string), rule[len(rule)-1]) &&
-					assert.Equal(t, values.(map[string]interface{})["cidr_blocks"], cidr_blocks) {
+				if assert.Equal(t, strings.ToUpper(rule[0]), values.(map[string]interface{})["description"].(string)) &&
+					assert.Equal(t, rule[len(rule)-1], values.(map[string]interface{})["protocol"].(string)) &&
+					assert.Equal(t, cidr_blocks, values.(map[string]interface{})["cidr_blocks"]) {
 					t.Logf("Ingress rule %d check PASSED for module in %s", i, terraformOptions.TerraformDir)
 				} else {
 					t.Errorf("Ingress rule %d check FAILED for module in %s, expected CIDR to be %s, description to be %s and protocol to be %s", i, terraformOptions.TerraformDir, cidr_blocks, strings.ToUpper(rule[0]), rule[len(rule)-1])
@@ -382,11 +419,11 @@ func TestTerragruntDeployment(t *testing.T) {
 				// Execute the above query; since it modifies the pointer we can only do this once, so we add it to a variable
 				values := modulejson.Get().([]interface{})[0].(map[string]interface{})["values"]
 
-				// Compare the ingress rules with configured inputs
+				// Compare the egress rules with configured inputs
 				rule := strings.Split(inputs["egress_rules"].([]interface{})[i].(string), "-")
-				if assert.Equal(t, values.(map[string]interface{})["description"].(string), strings.ToUpper(rule[0])) &&
-					assert.Equal(t, values.(map[string]interface{})["protocol"].(string), rule[len(rule)-1]) &&
-					assert.Equal(t, values.(map[string]interface{})["cidr_blocks"], cidr_blocks) {
+				if assert.Equal(t, strings.ToUpper(rule[0]), values.(map[string]interface{})["description"].(string)) &&
+					assert.Equal(t, rule[len(rule)-1], values.(map[string]interface{})["protocol"].(string)) &&
+					assert.Equal(t, cidr_blocks, values.(map[string]interface{})["cidr_blocks"]) {
 					t.Logf("Egress rule %d check PASSED for module in %s", i, terraformOptions.TerraformDir)
 				} else {
 					t.Errorf("Egress rule %d check FAILED for module in %s, expected CIDR to be %s, description to be %s and protocol to be %s", i, terraformOptions.TerraformDir, cidr_blocks, strings.ToUpper(rule[0]), rule[len(rule)-1])
@@ -446,9 +483,9 @@ func TestTerragruntDeployment(t *testing.T) {
 
 				// Compare the ingress rules with configured inputs
 				rule := strings.Split(inputs["ingress_rules"].([]interface{})[i].(string), "-")
-				if assert.Equal(t, values.(map[string]interface{})["description"].(string), strings.ToUpper(rule[0])) &&
-					assert.Equal(t, values.(map[string]interface{})["protocol"].(string), rule[len(rule)-1]) &&
-					assert.Equal(t, values.(map[string]interface{})["cidr_blocks"], cidr_blocks) {
+				if assert.Equal(t, strings.ToUpper(rule[0]), values.(map[string]interface{})["description"].(string)) &&
+					assert.Equal(t, rule[len(rule)-1], values.(map[string]interface{})["protocol"].(string)) &&
+					assert.Equal(t, cidr_blocks, values.(map[string]interface{})["cidr_blocks"]) {
 					t.Logf("Ingress rule %d check PASSED for module in %s", i, terraformOptions.TerraformDir)
 				} else {
 					t.Errorf("Ingress rule %d check FAILED for module in %s, expected CIDR to be %s, description to be %s and protocol to be %s", i, terraformOptions.TerraformDir, cidr_blocks, strings.ToUpper(rule[0]), rule[len(rule)-1])
@@ -465,11 +502,11 @@ func TestTerragruntDeployment(t *testing.T) {
 				// Execute the above query; since it modifies the pointer we can only do this once, so we add it to a variable
 				values := modulejson.Get().([]interface{})[0].(map[string]interface{})["values"]
 
-				// Compare the ingress rules with configured inputs
+				// Compare the egress rules with configured inputs
 				rule := strings.Split(inputs["egress_rules"].([]interface{})[i].(string), "-")
-				if assert.Equal(t, values.(map[string]interface{})["description"].(string), strings.ToUpper(rule[0])) &&
-					assert.Equal(t, values.(map[string]interface{})["protocol"].(string), rule[len(rule)-1]) &&
-					assert.Equal(t, values.(map[string]interface{})["cidr_blocks"], cidr_blocks) {
+				if assert.Equal(t, strings.ToUpper(rule[0]), values.(map[string]interface{})["description"].(string)) &&
+					assert.Equal(t, rule[len(rule)-1], values.(map[string]interface{})["protocol"].(string)) &&
+					assert.Equal(t, cidr_blocks, values.(map[string]interface{})["cidr_blocks"]) {
 					t.Logf("Egress rule %d check PASSED for module in %s", i, terraformOptions.TerraformDir)
 				} else {
 					t.Errorf("Egress rule %d check FAILED for module in %s, expected CIDR to be %s, description to be %s and protocol to be %s", i, terraformOptions.TerraformDir, cidr_blocks, strings.ToUpper(rule[0]), rule[len(rule)-1])
@@ -580,7 +617,8 @@ func TestTerragruntDeployment(t *testing.T) {
 			if assert.Equal(t, outputs["availability_zone"].(string), pregion["location"].(string)+pregion["zone_preference"].(string)) {
 				t.Logf("Availability zone check PASSED for module in %s", terraformOptions.TerraformDir)
 			} else {
-				t.Errorf("Availability zone check FAILED for module in %s, expected instance to be deployed in zone %s", terraformOptions.TerraformDir, pregion["location"].(string)+pregion["zone_preference"].(string))
+				t.Errorf("Availability zone check FAILED for module in %s, expected instance to be deployed in zone %s", terraformOptions.TerraformDir,
+					pregion["location"].(string)+pregion["zone_preference"].(string))
 			}
 
 			// Make sure the instance does not configure a public IP address
@@ -596,6 +634,104 @@ func TestTerragruntDeployment(t *testing.T) {
 				Select("values")
 			// Execute the above query; since it modifies the pointer we can only do this once, so we add it to a variable
 			values := modulejson.Get().([]interface{})[0].(map[string]interface{})["values"]
+
+			// Make sure tags are applied
+			for tag, content := range env["labels"].(map[string]interface{}) {
+				if assert.Equal(t, values.(map[string]interface{})["tags"].(map[string]interface{})[tag].(string), content.(string)) {
+					t.Logf("Tag check for tag '%s' PASSED for module in %s", tag, terraformOptions.TerraformDir)
+				} else {
+					t.Errorf("Tag check for tag '%s' FAILED for module in %s, expected %s.", tag, terraformOptions.TerraformDir, content.(string))
+				}
+			}
+
+		// GitLab Applicaton Load Balancer module
+		case "3-gitlabALB":
+			// Make sure that prevent_destroy is set to false
+			if assert.Contains(t, hclstring, "prevent_destroy = false") {
+				t.Logf("Prevent destroy check PASSED for module in %s", terraformOptions.TerraformDir)
+			} else {
+				t.Errorf("Prevent destroy check FAILED for module in %s, expected prevent_destroy to be set to false in terragrunt.hcl.", terraformOptions.TerraformDir)
+			}
+
+			// Make sure the fqdn contains the name and domain
+			if assert.Contains(t, outputs["route53_records"].(map[string]interface{})[inputs["dns"].([]interface{})[0].(map[string]interface{})["name"].(string)].(map[string]interface{})["fqdn"].(string),
+				inputs["dns"].([]interface{})[0].(map[string]interface{})["name"].(string)+"."+env["dns"].(map[string]interface{})["domain"].(string)) {
+				t.Logf("Distinct DNS name check PASSED for module in %s", terraformOptions.TerraformDir)
+			} else {
+				t.Errorf("Distinct DNS name check FAILED for module in %s, expected %s.", terraformOptions.TerraformDir,
+					inputs["name"].(string)+"."+env["dns"].(map[string]interface{})["domain"].(string))
+			}
+
+			// Make sure the listener is on the correct port
+			if assert.Equal(t, inputs["listeners"].(map[string]interface{})["https"].(map[string]interface{})["port"].(int),
+				int(outputs["listeners"].(map[string]interface{})["https"].(map[string]interface{})["port"].(float64))) {
+				t.Logf("Listener port check PASSED for module in %s", terraformOptions.TerraformDir)
+			} else {
+				t.Errorf("Listener port check FAILED for module in %s, expected %d", terraformOptions.TerraformDir,
+					inputs["listeners"].(map[string]interface{})["https"].(map[string]interface{})["port"].(int))
+			}
+
+			// Make sure the listener is using the correct protocol
+			if assert.Equal(t, inputs["listeners"].(map[string]interface{})["https"].(map[string]interface{})["protocol"].(string),
+				outputs["listeners"].(map[string]interface{})["https"].(map[string]interface{})["protocol"].(string)) {
+				t.Logf("Listener protocol check PASSED for module in %s", terraformOptions.TerraformDir)
+			} else {
+				t.Errorf("Listener protocol check FAILED for module in %s, expected %s", terraformOptions.TerraformDir, certificateARN)
+			}
+
+			// Make sure the correct certficate is linked to the ALB
+			if assert.Equal(t, certificateARN, outputs["listeners"].(map[string]interface{})["https"].(map[string]interface{})["certificate_arn"].(string)) {
+				t.Logf("Certificate ARN check PASSED for module in %s", terraformOptions.TerraformDir)
+			} else {
+				t.Errorf("Certificate ARN check FAILED for module in %s, expected %s", terraformOptions.TerraformDir, certificateARN)
+			}
+
+			// Make sure the target group forwards to the correct port
+			if assert.Equal(t, inputs["targets"].(map[string]interface{})["gitlab"].(map[string]interface{})["port"].(int),
+				int(outputs["target_groups"].(map[string]interface{})["gitlab"].(map[string]interface{})["port"].(float64))) {
+				t.Logf("Target port check PASSED for module in %s", terraformOptions.TerraformDir)
+			} else {
+				t.Errorf("Target port check FAILED for module in %s, expected %d", terraformOptions.TerraformDir,
+					inputs["targets"].(map[string]interface{})["gitlab"].(map[string]interface{})["port"].(int))
+			}
+
+			// Make sure the target group forwards using the correct protocol
+			if assert.Equal(t, inputs["targets"].(map[string]interface{})["gitlab"].(map[string]interface{})["protocol"].(string),
+				outputs["target_groups"].(map[string]interface{})["gitlab"].(map[string]interface{})["protocol"].(string)) {
+				t.Logf("Target protocol check PASSED for module in %s", terraformOptions.TerraformDir)
+			} else {
+				t.Errorf("Target protocol check FAILED for module in %s, expected %s", terraformOptions.TerraformDir,
+					inputs["targets"].(map[string]interface{})["gitlab"].(map[string]interface{})["protocol"].(string))
+			}
+
+			// Make sure the target group configures the correct health check URI
+			path_exists := false
+			for _, object := range outputs["target_groups"].(map[string]interface{})["gitlab"].(map[string]interface{})["health_check"].([]interface{}) {
+				if assert.Equal(t, object.(map[string]interface{})["path"].(string),
+					inputs["targets"].(map[string]interface{})["gitlab"].(map[string]interface{})["health_check"].(map[string]interface{})["path"].(string)) {
+					path_exists = true
+				}
+			}
+			if path_exists {
+				t.Logf("Health check URI check PASSED for module in %s", terraformOptions.TerraformDir)
+			} else {
+				t.Errorf("Health check URI check FAILED for module in %s, expected %s", terraformOptions.TerraformDir,
+					inputs["targets"].(map[string]interface{})["gitlab"].(map[string]interface{})["health_check"].(map[string]interface{})["path"].(string))
+			}
+
+			// Query the json string representing state returned by 'terraform.Show'
+			modulejson := gojsonq.New().JSONString(terraform.Show(t, terraformOptions)).From("values.root_module.resources").
+				Where("address", "eq", "aws_lb.this[0]").
+				Select("values")
+			// Execute the above query; since it modifies the pointer we can only do this once, so we add it to a variable
+			values := modulejson.Get().([]interface{})[0].(map[string]interface{})["values"]
+
+			// Make sure deletion protection is set properly
+			if assert.Equal(t, inputs["deletion_protection"].(bool), values.(map[string]interface{})["enable_deletion_protection"].(bool)) {
+				t.Logf("Deletion protection check PASSED for module in %s", terraformOptions.TerraformDir)
+			} else {
+				t.Errorf("Deletion protection check FAILED for module in %s, expected %t.", terraformOptions.TerraformDir, inputs["deletion_protection"].(bool))
+			}
 
 			// Make sure tags are applied
 			for tag, content := range env["labels"].(map[string]interface{}) {

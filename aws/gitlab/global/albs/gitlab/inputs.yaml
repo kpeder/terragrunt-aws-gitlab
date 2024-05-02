@@ -1,0 +1,45 @@
+---
+deletion_protection: false
+dns:
+  - name: "gitlab"
+    ttl: 600
+    type: "A"
+egress:
+  all_tcp:
+    cidr_ipv4: "172.16.0.0/16"
+    from_port: 80
+    ip_protocol: "tcp"
+    to_port: 80
+ingress:
+  all_https:
+    cidr_ipv4: "0.0.0.0/0"
+    description: "HTTPS traffic"
+    from_port: 443
+    ip_protocol: "tcp"
+    to_port: 443
+labels: {}
+listeners:
+  https:
+    certificate_arn: ""
+    forward:
+      target_group_key: "gitlab"
+    port: 443
+    protocol: "HTTPS"
+name: "gitlab"
+targets:
+  gitlab:
+    create_attachment: true
+    health_check:
+      enabled: true
+      healthy_threshold: 2
+      interval: 30
+      matcher: "200"
+      path: "/-/health"
+      port: "traffic-port"
+      protocol: "HTTP"
+      timeout: 6
+      unhealthy_threshold: 3
+    name: "gitlab"
+    port: 80
+    protocol: "HTTP"
+    target_type: "instance"

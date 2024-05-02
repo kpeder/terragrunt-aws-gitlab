@@ -4,4 +4,8 @@ labels: {}
 monitoring: false
 name: "gitlab"
 public_ip: false
-type: "c7i.large"
+type: "m7i.large"
+user_data: |
+  #!/bin/bash
+  apt-get update -y
+  curl https://packages.gitlab.com/install/repositories/gitlab/gitlab-ee/script.deb.sh | bash

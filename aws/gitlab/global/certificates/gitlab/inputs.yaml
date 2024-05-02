@@ -1,0 +1,5 @@
+---
+labels: {}
+name: "gitlab"
+validation_method: "DNS"
+wait_for_validation: false
