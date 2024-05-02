@@ -67,7 +67,7 @@ inputs = {
   security_group_egress_rules  = { for k, v in local.inputs.egress: k => v }
   security_group_ingress_rules = { for k, v in local.inputs.ingress: k => v }
   target_groups                = {
-    for k, v in local.inputs.targets: k => merge(v, 
+    for k, v in local.inputs.targets: k => merge(v,
     {
       target_id = dependency.gitlab_instance.outputs.id
     })
