@@ -26,7 +26,6 @@ terragrunt
     ```
     $ aws configure
     ```
-1. It's recommended to deploy a build project and folder first, and to use this project in the configuration for additional deployments. The build project can be deployed and managed using this framework with a couple of additional steps to create a local state configuration and then to migrate state to a remote state configuration after the project and bucket are created. ALternatively, the build resources can be pre-created and then imported into the framework using the import command. These considerations are not addressed in this example.
 
 ### Deployment
 Automated installation configuration, and deployment steps are managed using Makefile targets. Use ```make help``` for a list of configured targets:
